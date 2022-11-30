@@ -9,6 +9,9 @@ from geometry_msgs.msg import PoseStamped, Pose
 from sensor_msgs.msg import LaserScan
 from tf.transformations import euler_from_quaternion
 import math
+from door_opener import DoorOpener
+from geometry_msgs.msg import Point
+
 
 class UpdateMap():
     def __init__(self):
@@ -50,6 +53,8 @@ class UpdateMap():
         self.laser_sub = rospy.Subscriber("/uav/sensors/lidar", LaserScan, self.get_laser)
         # Publishers
         self.map_pub = rospy.Publisher("/map", OccupancyGrid, queue_size=1)
+
+        self.is_door_open = False
 
         self.UpdateLoop()
 
@@ -148,7 +153,30 @@ class UpdateMap():
                 map_data[lidar_x][lidar_y] = min(100, map_data[lidar_x][lidar_y] + self.adjust * 100)
         
         # Hardcoded door
-        map_data[int(round(world_frame_x))][int(round(-0.5+ world_frame_y))] = -1 
+        if(not self.is_door_open):
+            map_data[int(round(world_frame_x))][int(round(-0.5+ world_frame_y))] = -1 
+        else:
+            map_data[int(round(world_frame_x))][int(round(-0.5+ world_frame_y))] = -2
+        time.sleep(5)
+        if(not self.is_door_open):
+            door_opener_test = DoorOpener()
+            hard_coded_point = Point()
+            hard_coded_point.x = 1
+            hard_coded_point.y = 0
+            hard_coded_point.z = 3
+            print()
+            print()
+            if(door_opener_test.use_key_client(hard_coded_point)):
+                map_data[int(round(world_frame_x))][int(round(-0.5+ world_frame_y))] = -2
+                print("Able to open the door")
+
+            # print("did it open a door: ", door_opener_test.use_key_client(hard_coded_point))
+            self.is_door_open = True
+            # print("should have opened the door")
+            print()
+
+
+
 
         # Seems inefficient, should look into an alternative
         map_data = map_data.tolist()

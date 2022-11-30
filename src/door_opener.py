@@ -22,11 +22,11 @@ class DoorOpener():
   def use_key_client(self, loc):
     rospy.wait_for_service('use_key')
     try:
-        print("trying the service proxy")
+        # print("trying the service proxy")
         use_key_response = rospy.ServiceProxy('use_key', use_key)
         resp = use_key_response(loc)
-        print("the respose is: ")
-        print(resp)
+        # print("the respose is: ")
+        # print(resp)
         return resp.success
     except rospy.ServiceException as e:
         print("Service call failed: %s"%e)
@@ -35,17 +35,17 @@ class DoorOpener():
 
   def mainloop(self):
     # # Create the publisher and subscriber
-    # pass
-    time.sleep(5)
-    print("in the main method")
-    hard_coded_point = Point()
-    hard_coded_point.x = 1
-    hard_coded_point.y = 1
-    hard_coded_point.z = 3
-    print("the hardcoded point is: ")
-    print(hard_coded_point)
-    print("trying door location")
-    print(self.use_key_client(hard_coded_point))
+    pass
+    # time.sleep(5)
+    # print("in the main method")
+    # hard_coded_point = Point()
+    # hard_coded_point.x = 1
+    # hard_coded_point.y = 1
+    # hard_coded_point.z = 3
+    # print("the hardcoded point is: ")
+    # print(hard_coded_point)
+    # print("trying door location")
+    # print(self.use_key_client(hard_coded_point))
 
 
 

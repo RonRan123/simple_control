@@ -88,11 +88,23 @@ class UpdateMap():
                 self.lidar.append(position)
 
         # self.lidar = np.array(self.lidar)
+    def lidar_to_drone(self, x_l, y_l):
+        world_frame_x = (self.map_width-1) / 2
+        world_frame_y = (self.map_height-1) / 2
+        drone_start_x = self.position[0] + world_frame_x
+        drone_start_y = self.position[1] + world_frame_y
 
+        adjusted_x = x_l + self.sign(x_l) * self.offset
+        adjusted_y = y_l + self.sign(y_l) * self.offset
+        return drone_start_x + adjusted_x, drone_start_y + adjusted_y
 
+    def drone_to_grid(self, x_d, y_d):
+        return int(round(x_d)), int(round(y_d))
+
+    def sign(self, x):
+        return int(math.copysign(1, x))
 
     def build_map(self):
-        sign = lambda x: math.copysign(1, x)
         world_frame_x = self.map_width / 2.0
         world_frame_y = self.map_height / 2.0
 
@@ -102,8 +114,7 @@ class UpdateMap():
         height = self.map_height
         res = self.map_resolution
         
-        
-
+    
         drone_start_x = int(self.position[0] + world_frame_x)
         drone_start_y = int(self.position[1] + world_frame_y)
 
@@ -119,41 +130,22 @@ class UpdateMap():
         self.count += 1
 
         for xl, yl, isObstacleThere in lidar_list:
-            # Discount the "inf" values because means did not run into obstacle
-            if not math.isinf(xl) and not math.isinf(yl):
-                adjusted_x = xl + sign(xl) * self.offset
-                adjusted_y = yl + sign(yl) * self.offset
-                length = round(math.sqrt(adjusted_x**2 + adjusted_y**2))
+            # The continuous lidar values, with the offset
+            lidar_c_x, lidar_c_y = self.lidar_to_drone(xl, yl)
+            # The contionus values converted to OccupancyGrid
+            lidar_x, lidar_y = self.drone_to_grid(lidar_c_x, lidar_c_y)
 
-                current_x = drone_start_x + adjusted_x
-                current_y = drone_start_y + adjusted_y
-                obstacle_x = int(round(current_x))
-                obstacle_y = int(round(current_y))
+            # More evidence it clear
+            if self.count <=5:
+                print('vals', xl, yl, drone_start_x, lidar_x, drone_start_y, lidar_y, isObstacleThere)
+            # Need to fix this, will always produce a squre/rectangle when I want a single "line" of boxes to adjust
+            for xi in range(drone_start_x, lidar_x, self.sign(lidar_x-drone_start_x)):
+                for yi in range(drone_start_y, lidar_y, self.sign(lidar_y-drone_start_y)):
+                    map_data[xi][yi] = max(0, map_data[xi][xi] - self.adjust * 100)
 
-                # More evidence it clear
-                for xi in range(drone_start_x, obstacle_x, 1):
-                    for yi in range(drone_start_y, obstacle_y, 1):
-                        map_data[xi][yi] = max(0, map_data[xi][xi] - self.adjust * 100)
-
-                
-                # More evidence its an obstacle
-                if isObstacleThere:
-                    map_data[obstacle_x][obstacle_y] = min(100, map_data[obstacle_x][obstacle_y] + self.adjust * 100)
-            
-            # If the lidar returns infinity, it is clear al lthe way in that direction
-            # else:
-            #     if xl == float("inf") and yl == float("inf"):
-            #         for xi in range(drone_start_x, drone_start_x + self.range + 1, 1):
-            #             for yi in range(drone_start_y, drone_start_y + self.range + 1, 1):
-            #                 map_data[xi][yi] = max(0, map_data[xi][yi] - self.adjust * 100)
-            #     elif xl == float("inf"):
-            #         for xi in range(drone_start_x, drone_start_x + self.range + 1, 1):
-            #             map_data[xi][drone_start_y] = max(0, map_data[xi][drone_start_y] - self.adjust * 100)
-            #     else:
-            #         for yi in range(drone_start_y, drone_start_y + self.range + 1, 1):
-            #             map_data[drone_start_x][yi] = max(0, map_data[drone_start_x][yi] - self.adjust * 100)
-
-        # map_data[int(offset_x + start_x)][int(offset_y + start_y)] = -2
+            # More evidence its an obstacle
+            if isObstacleThere:
+                map_data[lidar_x][lidar_y] = min(100, map_data[lidar_x][lidar_y] + self.adjust * 100)
         
         # Hardcoded door
         map_data[int(round(world_frame_x))][int(round(-0.5+ world_frame_y))] = -1 

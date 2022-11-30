@@ -2,6 +2,7 @@
 import rospy
 import time
 import numpy as np
+import itertools
 
 from nav_msgs.msg import OccupancyGrid
 from geometry_msgs.msg import PoseStamped, Pose
@@ -14,6 +15,14 @@ class UpdateMap():
         # Set the rate
         self.rate = 5.0
         self.dt = 1.0 / self.rate
+
+        # Aim towards center of block
+        self.offset = 0.5
+        # Want to strength our map over time
+        self.adjust = 0.1
+        self.range = 5
+
+        self.count = 0
 
         # Need to input from the arg file
         self.map_width = 11
@@ -56,39 +65,88 @@ class UpdateMap():
                            msg.pose.orientation.w)
         _, _, self.yaw = euler_from_quaternion(self.quaternion)
 
-
+    # Vectors stemming out from the drone
     def get_laser(self, msg):
         self.lidar = []
         # print('Drone position', self.position[0], self.position[1])
         for index, range in enumerate(msg.ranges):
+            # if msg.range_min <range < msg.range_max
             angle = msg.angle_min + index * msg.angle_increment  # - self.yaw
-            position = (self.position[0] + range * math.cos(angle),
-                        self.position[1] + range * math.sin(angle))
+            # TODO: Decide on one of these for the moving drone
+            position = (range * math.cos(angle), range * math.sin(angle))
+            # position = (self.position[0] + range * math.cos(angle),
+            #             self.position[1] + range * math.sin(angle))
             # print('angle', angle)
             # print('range', range)
             # print('position', position)
             self.lidar.append(position)
-        self.lidar = np.array(self.lidar)
+        # self.lidar = np.array(self.lidar)
 
-    # def build_map(self):
-    #     map = self.map
 
-    #     width = self.map_width
-    #     height = self.map_height
-    #     res = self.map_resolution
+
+    def build_map(self):
+        sign = lambda x: math.copysign(1, x)
+        world_frame_x = self.map_width / 2.0
+        world_frame_y = self.map_height / 2.0
+
+        map = self.map
+
+        width = self.map_width
+        height = self.map_height
+        res = self.map_resolution
         
-    #     self.start_x = self.position[0]
-    #     self.start_y = self.position[1]
+        
 
-    #     self.end_x = self.start_x + (width * res)
-    #     self.end_y = self.start_y + (height * res)
+        drone_start_x = int(self.position[0] + world_frame_x)
+        drone_start_y = int(self.position[1] + world_frame_y)
 
-    #     map_data = np.reshape(map.data, (width, height))
+        end_x = drone_start_x + (width * res)
+        end_y = drone_start_y + (height * res)
 
-    #     for xi in range(0, width):
-    #         for yi in range(0, height):
-    #             map_data[xi][yi] = 50
-    #     map.data = map_data.tolist()
+        map_data = np.reshape(map.data, (width, height))
+
+        # Go over the recent LIDAR data to update map
+        lidar_list = self.lidar
+        for xl, yl in lidar_list:
+            # Discount the "inf" values because means did not run into obstacle
+            if not math.isinf(xl) and not math.isinf(yl):
+                adjusted_x = xl + sign(xl) * self.offset
+                adjusted_y = yl + sign(yl) * self.offset
+                length = round(math.sqrt(adjusted_x**2 + adjusted_y**2))
+
+                current_x = drone_start_x + adjusted_x
+                current_y = drone_start_y + adjusted_y
+                obstacle_x = int(round(current_x))
+                obstacle_y = int(round(current_y))
+
+                # More evidence it clear
+                for xi in range(drone_start_x, obstacle_x, 1):
+                    for yi in range(drone_start_y, obstacle_y, 1):
+                        map_data[xi][yi] = max(0, map_data[xi][xi] - self.adjust * 100)
+
+                
+                # More evidence its an obstacle
+                map_data[obstacle_x][obstacle_y] = min(100, map_data[obstacle_x][obstacle_y] + self.adjust * 100)
+            
+            # If the lidar returns infinity, it is clear al lthe way in that direction
+            else:
+                if xl == float("inf") and yl == float("inf"):
+                    for xi in range(drone_start_x, drone_start_x + self.range + 1, 1):
+                        for yi in range(drone_start_y, drone_start_y + self.range + 1, 1):
+                            map_data[xi][yi] = max(0, map_data[xi][yi] - self.adjust * 100)
+                elif xl == float("inf"):
+                    for xi in range(drone_start_x, drone_start_x + self.range + 1, 1):
+                        map_data[xi][drone_start_y] = max(0, map_data[xi][drone_start_y] - self.adjust * 100)
+                else:
+                    for yi in range(drone_start_y, drone_start_y + self.range + 1, 1):
+                        map_data[drone_start_x][yi] = max(0, map_data[drone_start_x][yi] - self.adjust * 100)
+
+        # map_data[int(offset_x + start_x)][int(offset_y + start_y)] = -2
+        
+        # Seems inefficient, should look into an alternative
+        map_data = map_data.tolist()
+        data = list(itertools.chain.from_iterable(map_data))
+        map.data = data
 
     def UpdateLoop(self):
         # Set the rate
@@ -96,7 +154,7 @@ class UpdateMap():
 
         # While running
         while not rospy.is_shutdown():
-            # self.build_map()
+            self.build_map()
             self.map_pub.publish(self.map)
 
             # Sleep any excess time

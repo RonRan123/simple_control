@@ -15,8 +15,11 @@ class UpdateMap():
         self.rate = 5.0
         self.dt = 1.0 / self.rate
 
-        self.map_width = 23
-        self.map_height = 23
+        # Need to input from the arg file
+        self.map_width = 11
+        self.map_height = 11
+        
+        self.map_resolution = 1
 
         # Environment
         self.position = np.zeros(3, dtype=np.float64)
@@ -27,13 +30,17 @@ class UpdateMap():
         self.map = OccupancyGrid()
         self.map.info.width = self.map_width
         self.map.info.height = self.map_height
-        self.map.info.resolution = self
+        self.map.info.resolution = self.map_resolution
+        self.map.data = [50] * self.map_width * self.map_height * self.map_resolution
+
+        self.map.info.origin.position.x = -1 * self.map_width / 2.0
+        self.map.info.origin.position.y = -1 * self.map_height / 2.0
 
         # Subscribers
         self.gps_sub = rospy.Subscriber("uav/sensors/gps", PoseStamped, self.get_gps)
         self.laser_sub = rospy.Subscriber("/uav/sensors/lidar", LaserScan, self.get_laser)
         # Publishers
-        self.map_pub = rospy.Pubscriber("/map", OccupancyGrid)
+        self.map_pub = rospy.Publisher("/map", OccupancyGrid, queue_size=1)
 
         self.UpdateLoop()
 
@@ -63,12 +70,25 @@ class UpdateMap():
             self.lidar.append(position)
         self.lidar = np.array(self.lidar)
 
-    def build_map(self):
-        map = self.map
-        
-        
+    # def build_map(self):
+    #     map = self.map
 
-        map_data = np.reshape(msg.data, (width, height))
+    #     width = self.map_width
+    #     height = self.map_height
+    #     res = self.map_resolution
+        
+    #     self.start_x = self.position[0]
+    #     self.start_y = self.position[1]
+
+    #     self.end_x = self.start_x + (width * res)
+    #     self.end_y = self.start_y + (height * res)
+
+    #     map_data = np.reshape(map.data, (width, height))
+
+    #     for xi in range(0, width):
+    #         for yi in range(0, height):
+    #             map_data[xi][yi] = 50
+    #     map.data = map_data.tolist()
 
     def UpdateLoop(self):
         # Set the rate
@@ -76,7 +96,7 @@ class UpdateMap():
 
         # While running
         while not rospy.is_shutdown():
-            self.build_map()
+            # self.build_map()
             self.map_pub.publish(self.map)
 
             # Sleep any excess time

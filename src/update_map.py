@@ -65,7 +65,7 @@ class UpdateMap():
 
     def build_map(self):
         map = self.map
-
+        
         
 
         map_data = np.reshape(msg.data, (width, height))

@@ -5,9 +5,9 @@
   <arg name="map_height" default="23" />
 
 	<!-- TODO add any calls to your code -->
-  <!-- <node name="Update_Map_Node" pkg="simple_control" type="update_map.py" output="screen" required="True">
+  <node name="Update_Map_Node" pkg="simple_control" type="update_map.py" output="screen" required="True">
     <param name="map_width" type="int" value="$(arg map_width)" />
     <param name="map_height" type="int" value="$(arg map_height)" />
-  </node> -->
+  </node>
 
 </launch>

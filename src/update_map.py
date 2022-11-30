@@ -17,7 +17,7 @@ class UpdateMap():
         self.dt = 1.0 / self.rate
 
         # Aim towards center of block
-        self.offset = 0.5
+        self.offset = 0.3
         # Want to strength our map over time
         self.adjust = 0.1
         self.range = 5
@@ -70,16 +70,23 @@ class UpdateMap():
         self.lidar = []
         # print('Drone position', self.position[0], self.position[1])
         for index, range in enumerate(msg.ranges):
-            # if msg.range_min <range < msg.range_max
-            angle = msg.angle_min + index * msg.angle_increment  # - self.yaw
-            # TODO: Decide on one of these for the moving drone
-            position = (range * math.cos(angle), range * math.sin(angle))
-            # position = (self.position[0] + range * math.cos(angle),
-            #             self.position[1] + range * math.sin(angle))
-            # print('angle', angle)
-            # print('range', range)
-            # print('position', position)
-            self.lidar.append(position)
+            if range < msg.range_max:
+                angle = msg.angle_min + index * msg.angle_increment  # - self.yaw
+                # TODO: Decide on one of these for the moving drone
+                position = (range * math.cos(angle), range * math.sin(angle), True)
+                # position = (self.position[0] + range * math.cos(angle),
+                #             self.position[1] + range * math.sin(angle))
+                # print('angle', angle)
+                # print('range', range)
+                # print('position', position)
+                self.lidar.append(position)
+            # No obstacle found in that direction
+            else:
+                length = msg.range_max
+                angle = msg.angle_min + index * msg.angle_increment  # - self.yaw
+                position = (length * math.cos(angle), length * math.sin(angle), False)
+                self.lidar.append(position)
+
         # self.lidar = np.array(self.lidar)
 
 
@@ -107,7 +114,11 @@ class UpdateMap():
 
         # Go over the recent LIDAR data to update map
         lidar_list = self.lidar
-        for xl, yl in lidar_list:
+        if self.count <= 5:
+            print(lidar_list)
+        self.count += 1
+
+        for xl, yl, isObstacleThere in lidar_list:
             # Discount the "inf" values because means did not run into obstacle
             if not math.isinf(xl) and not math.isinf(yl):
                 adjusted_x = xl + sign(xl) * self.offset
@@ -126,23 +137,27 @@ class UpdateMap():
 
                 
                 # More evidence its an obstacle
-                map_data[obstacle_x][obstacle_y] = min(100, map_data[obstacle_x][obstacle_y] + self.adjust * 100)
+                if isObstacleThere:
+                    map_data[obstacle_x][obstacle_y] = min(100, map_data[obstacle_x][obstacle_y] + self.adjust * 100)
             
             # If the lidar returns infinity, it is clear al lthe way in that direction
-            else:
-                if xl == float("inf") and yl == float("inf"):
-                    for xi in range(drone_start_x, drone_start_x + self.range + 1, 1):
-                        for yi in range(drone_start_y, drone_start_y + self.range + 1, 1):
-                            map_data[xi][yi] = max(0, map_data[xi][yi] - self.adjust * 100)
-                elif xl == float("inf"):
-                    for xi in range(drone_start_x, drone_start_x + self.range + 1, 1):
-                        map_data[xi][drone_start_y] = max(0, map_data[xi][drone_start_y] - self.adjust * 100)
-                else:
-                    for yi in range(drone_start_y, drone_start_y + self.range + 1, 1):
-                        map_data[drone_start_x][yi] = max(0, map_data[drone_start_x][yi] - self.adjust * 100)
+            # else:
+            #     if xl == float("inf") and yl == float("inf"):
+            #         for xi in range(drone_start_x, drone_start_x + self.range + 1, 1):
+            #             for yi in range(drone_start_y, drone_start_y + self.range + 1, 1):
+            #                 map_data[xi][yi] = max(0, map_data[xi][yi] - self.adjust * 100)
+            #     elif xl == float("inf"):
+            #         for xi in range(drone_start_x, drone_start_x + self.range + 1, 1):
+            #             map_data[xi][drone_start_y] = max(0, map_data[xi][drone_start_y] - self.adjust * 100)
+            #     else:
+            #         for yi in range(drone_start_y, drone_start_y + self.range + 1, 1):
+            #             map_data[drone_start_x][yi] = max(0, map_data[drone_start_x][yi] - self.adjust * 100)
 
         # map_data[int(offset_x + start_x)][int(offset_y + start_y)] = -2
         
+        # Hardcoded door
+        map_data[int(round(world_frame_x))][int(round(-0.5+ world_frame_y))] = -1 
+
         # Seems inefficient, should look into an alternative
         map_data = map_data.tolist()
         data = list(itertools.chain.from_iterable(map_data))

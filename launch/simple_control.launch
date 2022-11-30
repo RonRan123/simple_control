@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <launch>
 
-  <arg name="map_width" default="23" />
-  <arg name="map_height" default="23" />
+  <arg name="map_width" default="11" />
+  <arg name="map_height" default="11" />
 
 	<!-- TODO add any calls to your code -->
   <!-- <node name="door_opener_node" pkg="simple_control" type="door_opener.py" output="screen">

@@ -22,7 +22,7 @@ class UpdateMap():
         # Aim towards center of block
         self.offset = 0.3
         # Want to strength our map over time
-        self.adjust = 0.1
+        self.adjust = 0.6
         self.range = 5
 
         self.count = 0
@@ -130,9 +130,9 @@ class UpdateMap():
 
         # Go over the recent LIDAR data to update map
         lidar_list = self.lidar
-        if self.count <= 5:
-            print(lidar_list)
-        self.count += 1
+        # if self.count <= 5:
+        #     print(lidar_list)
+        # self.count += 1
 
         for xl, yl, isObstacleThere in lidar_list:
             # The continuous lidar values, with the offset
@@ -146,7 +146,7 @@ class UpdateMap():
             # Need to fix this, will always produce a squre/rectangle when I want a single "line" of boxes to adjust
             for xi in range(drone_start_x, lidar_x, self.sign(lidar_x-drone_start_x)):
                 for yi in range(drone_start_y, lidar_y, self.sign(lidar_y-drone_start_y)):
-                    map_data[xi][yi] = max(0, map_data[xi][xi] - self.adjust * 100)
+                    map_data[xi][yi] = max(0, map_data[xi][yi] - self.adjust * 100)
 
             # More evidence its an obstacle
             if isObstacleThere:
@@ -157,8 +157,8 @@ class UpdateMap():
             map_data[int(round(world_frame_x))][int(round(-0.5+ world_frame_y))] = -1 
         else:
             map_data[int(round(world_frame_x))][int(round(-0.5+ world_frame_y))] = -2
-        time.sleep(5)
-        if(not self.is_door_open):
+        time.sleep(1)
+        if(not self.is_door_open and self.count >= 2):
             door_opener_test = DoorOpener()
             hard_coded_point = Point()
             hard_coded_point.x = 1
@@ -176,8 +176,6 @@ class UpdateMap():
             print()
 
 
-
-
         # Seems inefficient, should look into an alternative
         map_data = map_data.tolist()
         data = list(itertools.chain.from_iterable(map_data))
@@ -191,6 +189,7 @@ class UpdateMap():
         while not rospy.is_shutdown():
             self.build_map()
             self.map_pub.publish(self.map)
+            self.count+= 1
 
             # Sleep any excess time
             rate.sleep()

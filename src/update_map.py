@@ -55,6 +55,9 @@ class UpdateMap():
         self.map_pub = rospy.Publisher("/map", OccupancyGrid, queue_size=1)
 
         self.is_door_open = False
+        self.lidar = []
+        self.prev_lidar = []
+
 
         self.UpdateLoop()
 
@@ -72,25 +75,52 @@ class UpdateMap():
 
     # Vectors stemming out from the drone
     def get_laser(self, msg):
-        self.lidar = []
+        new_lidar_data = []
         # print('Drone position', self.position[0], self.position[1])
-        for index, range in enumerate(msg.ranges):
-            if range < msg.range_max:
+        for index, drone_range in enumerate(msg.ranges):
+            if drone_range < msg.range_max:
                 angle = msg.angle_min + index * msg.angle_increment  # - self.yaw
                 # TODO: Decide on one of these for the moving drone
-                position = (range * math.cos(angle), range * math.sin(angle), True)
+                position = (drone_range * math.cos(angle), drone_range * math.sin(angle), True)
                 # position = (self.position[0] + range * math.cos(angle),
                 #             self.position[1] + range * math.sin(angle))
                 # print('angle', angle)
                 # print('range', range)
                 # print('position', position)
-                self.lidar.append(position)
+                new_lidar_data.append(position)
             # No obstacle found in that direction
             else:
                 length = msg.range_max
                 angle = msg.angle_min + index * msg.angle_increment  # - self.yaw
                 position = (length * math.cos(angle), length * math.sin(angle), False)
-                self.lidar.append(position)
+                new_lidar_data.append(position)
+        # time.sleep(1)
+        # print(new_lidar_data)
+        # print("the len is: ", len(new_lidar_data))
+        # if(self.count > 1):
+        #     print(" in the if ")
+        #     for pos in range(16):
+        #         # print("in loop")
+        #         print(new_lidar_data[pos])
+        #         print("diff in x: ", new_lidar_data[pos][0] - self.lidar[pos][0])
+        #         print("diff in y: ", new_lidar_data[pos][1] - self.lidar[pos][1])
+        #         print()
+            # print(self.lidar - new_lidar_data)
+        if self.count > 1:
+            self.prev_lidar = self.lidar
+        self.lidar = new_lidar_data
+
+    def getdoors(self):
+        ans = []
+        if self.count > 2:
+            for x in range(len(self.lidar)):
+                # print(self.lidar[x])
+                total_diff = abs(self.lidar[x][0] - self.prev_lidar[x][0]) + abs(self.lidar[x][1] - self.prev_lidar[x][1])
+                if total_diff > 0.05:
+                    ans.append(self.lidar[x])
+        return ans
+        # pass
+
 
         # self.lidar = np.array(self.lidar)
     def lidar_to_drone(self, x_l, y_l):
@@ -158,7 +188,7 @@ class UpdateMap():
         else:
             map_data[int(round(world_frame_x))][int(round(-0.5+ world_frame_y))] = -2
         time.sleep(1)
-        if(not self.is_door_open and self.count >= 2):
+        if(not self.is_door_open and self.count >= 6):
             door_opener_test = DoorOpener()
             hard_coded_point = Point()
             hard_coded_point.x = 1
@@ -193,6 +223,12 @@ class UpdateMap():
 
             # Sleep any excess time
             rate.sleep()
+            time.sleep(1)
+            print()
+            print("***********")
+            print("the dooorss are: ")
+            print(self.getdoors())
+            print()
 
 
 def main():

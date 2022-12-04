@@ -20,7 +20,7 @@ class UpdateMap():
         self.dt = 1.0 / self.rate
 
         # Aim towards center of block
-        self.offset = 0.3
+        self.offset = 0.05
         # Want to strength our map over time
         self.adjust = 0.6
         self.range = 5
@@ -28,8 +28,8 @@ class UpdateMap():
         self.count = 0
 
         # Need to input from the arg file
-        self.map_width = 11
-        self.map_height = 11
+        self.map_width = rospy.get_param('/update_map_node/map_width', 11)
+        self.map_height = rospy.get_param('/update_map_node/map_height', 11)
         
         self.map_resolution = 1
 
@@ -124,22 +124,57 @@ class UpdateMap():
 
         # self.lidar = np.array(self.lidar)
     def lidar_to_drone(self, x_l, y_l):
-        world_frame_x = (self.map_width-1) / 2
-        world_frame_y = (self.map_height-1) / 2
-        drone_start_x = self.position[0] + world_frame_x
-        drone_start_y = self.position[1] + world_frame_y
+        drone_start_x = self.position[0] 
+        drone_start_y = self.position[1]
 
         adjusted_x = x_l + self.sign(x_l) * self.offset
         adjusted_y = y_l + self.sign(y_l) * self.offset
         return drone_start_x + adjusted_x, drone_start_y + adjusted_y
 
     def drone_to_grid(self, x_d, y_d):
-        return int(round(x_d)), int(round(y_d))
+        world_frame_x = self.map_width / 2.0
+        world_frame_y = self.map_height / 2.0
+        x_d, y_d = x_d + world_frame_x, y_d + world_frame_y
+        return int(x_d), int(y_d)
 
     def sign(self, x):
         return int(math.copysign(1, x))
 
+    # https://rosettacode.org/wiki/Bitmap/Bresenham%27s_line_algorithm#Python
+    def line(self, x0, y0, x1, y1):
+        res = []
+        "Bresenham's line algorithm"
+        dx = abs(x1 - x0)
+        dy = abs(y1 - y0)
+        x, y = x0, y0
+        sx = -1 if x0 > x1 else 1
+        sy = -1 if y0 > y1 else 1
+        if dx > dy:
+            err = dx / 2.0
+            while x != x1:
+                res.append((x, y))
+                err -= dy
+                if err < 0:
+                    y += sy
+                    err += dx
+                x += sx
+        else:
+            err = dy / 2.0
+            while y != y1:
+                res.append((x, y))
+                err -= dx
+                if err < 0:
+                    x += sx
+                    err += dy
+                y += sy        
+        res.append((x, y))
+        return res
+
+
     def build_map(self):
+        # Protected values that represent closed door, open door, and target
+        special = {-1, -2, -3}
+
         world_frame_x = self.map_width / 2.0
         world_frame_y = self.map_height / 2.0
 
@@ -150,8 +185,7 @@ class UpdateMap():
         res = self.map_resolution
         
     
-        drone_start_x = int(self.position[0] + world_frame_x)
-        drone_start_y = int(self.position[1] + world_frame_y)
+        drone_start_x, drone_start_y = self.drone_to_grid(self.position[0], self.position[1])
 
         end_x = drone_start_x + (width * res)
         end_y = drone_start_y + (height * res)
@@ -171,16 +205,27 @@ class UpdateMap():
             lidar_x, lidar_y = self.drone_to_grid(lidar_c_x, lidar_c_y)
 
             # More evidence it clear
-            if self.count <=5:
-                print('vals', xl, yl, drone_start_x, lidar_x, drone_start_y, lidar_y, isObstacleThere)
+            # if self.count <=5:
+                # print('vals', xl, yl, drone_start_x, lidar_x, drone_start_y, lidar_y, isObstacleThere)
             # Need to fix this, will always produce a squre/rectangle when I want a single "line" of boxes to adjust
-            for xi in range(drone_start_x, lidar_x, self.sign(lidar_x-drone_start_x)):
-                for yi in range(drone_start_y, lidar_y, self.sign(lidar_y-drone_start_y)):
+            points = self.line(drone_start_x, drone_start_y, lidar_x, lidar_y )
+            if self.count == 1:
+                print('Breseham', points, drone_start_x, drone_start_y, lidar_x, lidar_y)
+            for xi, yi in points[:-1]:
+                if map_data[xi][yi] not in special:
                     map_data[xi][yi] = max(0, map_data[xi][yi] - self.adjust * 100)
+            
+            # Old code from checkpoint that used incorrect approch, always rectangle
+            # for xi in range(drone_start_x, lidar_x, self.sign(lidar_x-drone_start_x)):
+            #     for yi in range(drone_start_y, lidar_y, self.sign(lidar_y-drone_start_y)):
+            #         map_data[xi][yi] = max(0, map_data[xi][yi] - self.adjust * 100)
 
-            # More evidence its an obstacle
-            if isObstacleThere:
-                map_data[lidar_x][lidar_y] = min(100, map_data[lidar_x][lidar_y] + self.adjust * 100)
+            # The last point will either be an obstacle or free
+            if map_data[lidar_x][lidar_y] not in special:
+                if isObstacleThere:
+                    map_data[lidar_x][lidar_y] = min(100, map_data[lidar_x][lidar_y] + self.adjust * 100)
+                else:
+                    map_data[lidar_x][lidar_y] = max(0, map_data[lidar_x][lidar_y] - self.adjust * 100)
         
         # Hardcoded door
         if(not self.is_door_open):

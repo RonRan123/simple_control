@@ -20,7 +20,7 @@ class UpdateMap():
         self.dt = 1.0 / self.rate
 
         # Aim towards center of block
-        self.offset = 0.05
+        self.offset = 0.1
         # Want to strength our map over time
         self.adjust = 0.6
         self.range = 5
@@ -37,7 +37,8 @@ class UpdateMap():
         self.position = np.zeros(3, dtype=np.float64)
         self.quaternion = np.zeros(4)
         self.yaw = 0
-        self.lidar = []
+
+        self.doors = {}
         
         self.map = OccupancyGrid()
         self.map.info.width = self.map_width
@@ -57,6 +58,8 @@ class UpdateMap():
         self.is_door_open = False
         self.lidar = []
         self.prev_lidar = []
+
+        self.door_opener = DoorOpener()
 
 
         self.UpdateLoop()
@@ -110,14 +113,28 @@ class UpdateMap():
             self.prev_lidar = self.lidar
         self.lidar = new_lidar_data
 
-    def getdoors(self):
+    def get_doors(self):
         ans = []
         if self.count > 2:
-            for x in range(len(self.lidar)):
+            for i in range(len(self.lidar)):
                 # print(self.lidar[x])
-                total_diff = abs(self.lidar[x][0] - self.prev_lidar[x][0]) + abs(self.lidar[x][1] - self.prev_lidar[x][1])
+                total_diff = abs(self.lidar[i][0] - self.prev_lidar[i][0]) + abs(self.lidar[i][1] - self.prev_lidar[i][1])
                 if total_diff > 0.05:
-                    ans.append(self.lidar[x])
+                    ans.append(self.lidar[i])
+        possible_doors = {}
+        for d in ans:
+            lidar_c_x, lidar_c_y = self.lidar_to_drone(d[0], d[1])
+            # The contionus values converted to OccupancyGrid
+            door_x, door_y = self.drone_to_grid(lidar_c_x, lidar_c_y)
+            if (door_x, door_y) not in possible_doors:
+                possible_doors[(door_x, door_y)] = 1
+            else:
+                possible_doors[(door_x, door_y)] += 1
+            for key, count in possible_doors.items():
+                # might want to increase count to 3
+                if count >= 2:
+                    if not key in self.doors:
+                        self.doors[key] = -1  
         return ans
         # pass
 
@@ -175,8 +192,8 @@ class UpdateMap():
         # Protected values that represent closed door, open door, and target
         special = {-1, -2, -3}
 
-        world_frame_x = self.map_width / 2.0
-        world_frame_y = self.map_height / 2.0
+        world_frame_x_int = int(self.map_width / 2)
+        world_frame_y_int = int(self.map_height / 2.0)
 
         map = self.map
 
@@ -227,28 +244,42 @@ class UpdateMap():
                 else:
                     map_data[lidar_x][lidar_y] = max(0, map_data[lidar_x][lidar_y] - self.adjust * 100)
         
-        # Hardcoded door
-        if(not self.is_door_open):
-            map_data[int(round(world_frame_x))][int(round(-0.5+ world_frame_y))] = -1 
-        else:
-            map_data[int(round(world_frame_x))][int(round(-0.5+ world_frame_y))] = -2
-        time.sleep(1)
-        if(not self.is_door_open and self.count >= 6):
-            door_opener_test = DoorOpener()
-            hard_coded_point = Point()
-            hard_coded_point.x = 1
-            hard_coded_point.y = 0
-            hard_coded_point.z = 3
-            print()
-            print()
-            if(door_opener_test.use_key_client(hard_coded_point)):
-                map_data[int(round(world_frame_x))][int(round(-0.5+ world_frame_y))] = -2
-                print("Able to open the door")
+        # Put the doors on the map
+        for key, state in self.doors.items():
+            xd, yd = key
+            map_data[xd][yd] = state
 
-            # print("did it open a door: ", door_opener_test.use_key_client(hard_coded_point))
-            self.is_door_open = True
-            # print("should have opened the door")
-            print()
+        for xi in range(drone_start_x-1, drone_start_x+2):
+            for yi in range(drone_start_x-1, drone_start_x+2):
+                if (xi, yi) == (drone_start_x, drone_start_y):
+                    continue
+                if 0 <= xi < width and 0 <= yi < height and  map_data[xi][yi] == -1:
+                    door_point = Point()
+                    # Need to convert back to drone perspective
+                    door_point.x = xi-world_frame_x_int
+                    door_point.y = yi-world_frame_y_int
+                    door_point.z = 3
+                    # print(door_point)
+                    if(self.door_opener.use_key_client(door_point)):
+                        self.doors[(xi, yi)] = -2
+        
+        # if(not self.is_door_open and self.count >= 6):
+        #     door_opener_test = DoorOpener()
+        #     hard_coded_point = Point()
+        #     hard_coded_point.x = 1
+        #     hard_coded_point.y = 0
+        #     hard_coded_point.z = 3
+        #     print()
+        #     print()
+        #     if(door_opener_test.use_key_client(hard_coded_point)):
+        #         map_data[int(round(world_frame_x))][int(round(-0.5+ world_frame_y))] = -2
+        #         print("Able to open the door")
+
+        #     # print("did it open a door: ", door_opener_test.use_key_client(hard_coded_point))
+        #     self.is_door_open = True
+        #     # print("should have opened the door")
+        #     print()
+        
 
 
         # Seems inefficient, should look into an alternative
@@ -264,16 +295,18 @@ class UpdateMap():
         while not rospy.is_shutdown():
             self.build_map()
             self.map_pub.publish(self.map)
+            self.get_doors()
             self.count+= 1
-
             # Sleep any excess time
             rate.sleep()
             time.sleep(1)
+            '''
             print()
             print("***********")
             print("the dooorss are: ")
-            print(self.getdoors())
             print()
+            print()
+            '''
 
 
 def main():

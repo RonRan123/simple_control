@@ -100,7 +100,7 @@ class PathFinder():
             for yi in range(drone_y-1, drone_y+2):
                 if (xi, yi) == (drone_x, drone_y):
                     continue
-                if 0 <= xi <= width and 0 <= yi <= height and (self.map[xi][yi] == 0 or self.map[xi][yi] == -2):
+                if 0 <= xi < width and 0 <= yi < height and (self.map[xi][yi] == 0 or self.map[xi][yi] == -2):
                     neighbors.append((xi, yi))
         return neighbors
 

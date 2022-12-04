@@ -277,7 +277,7 @@ class UpdateMap():
 
 
 def main():
-  rospy.init_node('Update_Map_Node')
+  rospy.init_node('update_map_node')
   try:
     angcon = UpdateMap()
   except rospy.ROSInterruptException:

@@ -193,7 +193,7 @@ class UpdateMap():
         special = {-1, -2, -3}
 
         world_frame_x_int = int(self.map_width / 2)
-        world_frame_y_int = int(self.map_height / 2.0)
+        world_frame_y_int = int(self.map_height / 2)
 
         map = self.map
 
@@ -209,22 +209,15 @@ class UpdateMap():
 
         map_data = np.reshape(map.data, (width, height))
 
-        # Go over the recent LIDAR data to update map
         lidar_list = self.lidar
-        # if self.count <= 5:
-        #     print(lidar_list)
-        # self.count += 1
-
+        # Go over the recent LIDAR data to update map
         for xl, yl, isObstacleThere in lidar_list:
             # The continuous lidar values, with the offset
             lidar_c_x, lidar_c_y = self.lidar_to_drone(xl, yl)
             # The contionus values converted to OccupancyGrid
             lidar_x, lidar_y = self.drone_to_grid(lidar_c_x, lidar_c_y)
 
-            # More evidence it clear
-            # if self.count <=5:
-                # print('vals', xl, yl, drone_start_x, lidar_x, drone_start_y, lidar_y, isObstacleThere)
-            # Need to fix this, will always produce a squre/rectangle when I want a single "line" of boxes to adjust
+            # More evidence that a particular position is clear
             points = self.line(drone_start_x, drone_start_y, lidar_x, lidar_y )
             if self.count == 1:
                 print('Breseham', points, drone_start_x, drone_start_y, lidar_x, lidar_y)
@@ -232,10 +225,6 @@ class UpdateMap():
                 if map_data[xi][yi] not in special:
                     map_data[xi][yi] = max(0, map_data[xi][yi] - self.adjust * 100)
             
-            # Old code from checkpoint that used incorrect approch, always rectangle
-            # for xi in range(drone_start_x, lidar_x, self.sign(lidar_x-drone_start_x)):
-            #     for yi in range(drone_start_y, lidar_y, self.sign(lidar_y-drone_start_y)):
-            #         map_data[xi][yi] = max(0, map_data[xi][yi] - self.adjust * 100)
 
             # The last point will either be an obstacle or free
             if map_data[lidar_x][lidar_y] not in special:
@@ -263,25 +252,6 @@ class UpdateMap():
                     if(self.door_opener.use_key_client(door_point)):
                         self.doors[(xi, yi)] = -2
         
-        # if(not self.is_door_open and self.count >= 6):
-        #     door_opener_test = DoorOpener()
-        #     hard_coded_point = Point()
-        #     hard_coded_point.x = 1
-        #     hard_coded_point.y = 0
-        #     hard_coded_point.z = 3
-        #     print()
-        #     print()
-        #     if(door_opener_test.use_key_client(hard_coded_point)):
-        #         map_data[int(round(world_frame_x))][int(round(-0.5+ world_frame_y))] = -2
-        #         print("Able to open the door")
-
-        #     # print("did it open a door: ", door_opener_test.use_key_client(hard_coded_point))
-        #     self.is_door_open = True
-        #     # print("should have opened the door")
-        #     print()
-        
-
-
         # Seems inefficient, should look into an alternative
         map_data = map_data.tolist()
         data = list(itertools.chain.from_iterable(map_data))
@@ -300,13 +270,6 @@ class UpdateMap():
             # Sleep any excess time
             rate.sleep()
             time.sleep(1)
-            '''
-            print()
-            print("***********")
-            print("the dooorss are: ")
-            print()
-            print()
-            '''
 
 
 def main():

@@ -10,7 +10,9 @@ from sensor_msgs.msg import LaserScan
 from tf.transformations import euler_from_quaternion
 import math
 from door_opener import DoorOpener
+from tower_to_map import TowerToMap
 from geometry_msgs.msg import Point
+# from door_opener import Do
 
 
 class UpdateMap():
@@ -60,6 +62,10 @@ class UpdateMap():
         self.prev_lidar = []
 
         self.door_opener = DoorOpener()
+        self.tower_to_map = TowerToMap()
+        
+
+        # self.get_tower_poss = 
 
 
         self.UpdateLoop()
@@ -270,6 +276,7 @@ class UpdateMap():
             # Sleep any excess time
             rate.sleep()
             time.sleep(1)
+            print(self.tower_to_map.get_dog_position())
 
 
 def main():

@@ -5,7 +5,7 @@ import numpy as np
 import itertools
 
 from nav_msgs.msg import OccupancyGrid
-from geometry_msgs.msg import PoseStamped, Pose
+from geometry_msgs.msg import PoseStamped, Pose, Vector3
 from sensor_msgs.msg import LaserScan
 from tf.transformations import euler_from_quaternion
 import math
@@ -56,6 +56,7 @@ class UpdateMap():
         self.laser_sub = rospy.Subscriber("/uav/sensors/lidar", LaserScan, self.get_laser)
         # Publishers
         self.map_pub = rospy.Publisher("/map", OccupancyGrid, queue_size=1)
+        self.drone_pub = rospy.Publisher("/uav/input/position", Vector3, queue_size=1)
 
         self.is_door_open = False
         self.lidar = []
@@ -65,8 +66,7 @@ class UpdateMap():
         self.tower_to_map = TowerToMap()
         
 
-        # self.get_tower_poss = 
-
+        self.target = None
 
         self.UpdateLoop()
 
@@ -159,6 +159,11 @@ class UpdateMap():
         world_frame_y = self.map_height / 2.0
         x_d, y_d = x_d + world_frame_x, y_d + world_frame_y
         return int(x_d), int(y_d)
+    
+    def grid_to_drone(self, x_g, y_g):
+        world_frame_x = int(self.map_width / 2.0)
+        world_frame_y = int(self.map_height / 2.0)
+        return x_g - world_frame_x, y_g - world_frame_y
 
     def sign(self, x):
         return int(math.copysign(1, x))
@@ -206,7 +211,6 @@ class UpdateMap():
         width = self.map_width
         height = self.map_height
         res = self.map_resolution
-        
     
         drone_start_x, drone_start_y = self.drone_to_grid(self.position[0], self.position[1])
 
@@ -214,6 +218,18 @@ class UpdateMap():
         end_y = drone_start_y + (height * res)
 
         map_data = np.reshape(map.data, (width, height))
+        
+        dog = self.tower_to_map.get_dog_position()
+        if not self.target and dog:
+            xt, yt = int(round(dog.x + (width / 2.0))), int(round(dog.y + (height/2.0)))
+            self.target = (xt, yt)
+            # self.target = self.drone_to_grid(dog.x, dog.y)
+            # xt, yt = self.target
+            map_data[xt][yt] = -3
+            # Python is broken
+            print(dog, xt, yt, width/2.0, height/2.0, dog.x + width/2.0, dog.y + height/2.0)
+            
+        # print('target', self.target)
 
         lidar_list = self.lidar
         # Go over the recent LIDAR data to update map
@@ -225,8 +241,8 @@ class UpdateMap():
 
             # More evidence that a particular position is clear
             points = self.line(drone_start_x, drone_start_y, lidar_x, lidar_y )
-            if self.count == 1:
-                print('Breseham', points, drone_start_x, drone_start_y, lidar_x, lidar_y)
+            # if self.count == 1:
+                # print('Breseham', points, drone_start_x, drone_start_y, lidar_x, lidar_y)
             for xi, yi in points[:-1]:
                 if map_data[xi][yi] not in special:
                     map_data[xi][yi] = max(0, map_data[xi][yi] - self.adjust * 100)
@@ -243,7 +259,7 @@ class UpdateMap():
         for key, state in self.doors.items():
             xd, yd = key
             map_data[xd][yd] = state
-
+        
         for xi in range(drone_start_x-1, drone_start_x+2):
             for yi in range(drone_start_x-1, drone_start_x+2):
                 if (xi, yi) == (drone_start_x, drone_start_y):
@@ -263,12 +279,22 @@ class UpdateMap():
         data = list(itertools.chain.from_iterable(map_data))
         map.data = data
 
+    def move_drone(self, x, y):
+        vector = Vector3()
+        vector.z = 3
+        vector.x, vector.y = self.grid_to_drone(x, y)
+        self.drone_pub.publish(vector)
+
     def UpdateLoop(self):
         # Set the rate
         rate = rospy.Rate(self.rate)
 
         # While running
         while not rospy.is_shutdown():
+            path = [(6, 5), (7, 5), (7, 6), (7, 7), (7, 8), (7, 9), (8, 9), (9, 9)]
+            if self.count % 15 == 0 and 1 < self.count < 15 * len(path):
+                cell = path[self.count // 15]
+                self.move_drone(cell[0], cell[1])
             self.build_map()
             self.map_pub.publish(self.map)
             self.get_doors()
@@ -276,7 +302,7 @@ class UpdateMap():
             # Sleep any excess time
             rate.sleep()
             time.sleep(1)
-            print(self.tower_to_map.get_dog_position())
+            # print()
 
 
 def main():

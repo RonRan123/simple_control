@@ -36,7 +36,7 @@ class TowerToMap():
     if self.final_dog_position is not None:
       return self.final_dog_position
     
-    while not rospy.is_shutdown() and self.final_dog_position == None:
+    while not rospy.is_shutdown() and self.target and self.final_dog_position == None:
       try: 
         transform = self.tfBuffer.lookup_transform('cell_tower', 'world', rospy.Time())
 
@@ -69,6 +69,6 @@ class TowerToMap():
 if __name__ == '__main__':
   rospy.init_node('tower_to_map_node')
   try:
-    pp = DoorOpener()
+    pp = TowerToMap()
   except rospy.ROSInterruptException:
     pass

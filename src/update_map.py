@@ -302,12 +302,12 @@ class UpdateMap():
         # While running
         while not rospy.is_shutdown():
             path = [(5, 5), (6, 5), (7, 5), (7, 6), (7, 7), (7, 8), (7, 9), (8, 9), (9, 9)]
-            goal = self.count // 15
-            if self.count % 15 == 0 and 1 < self.count < 15 * len(path):
-                self.position_counter = 0
-                cell = path[goal]
-                self.move_drone(cell[0], cell[1])
-            if self.drone_to_grid(self.position[0], self.position[1]) == path[goal]:
+            # goal = self.count // 15
+            # if self.count % 15 == 0 and 1 < self.count < 15 * len(path):
+            #     self.position_counter = 0
+            #     cell = path[goal]
+            #     self.move_drone(cell[0], cell[1])
+            if self.drone_to_grid(self.position[0], self.position[1]) in path:
                 self.position_counter += 1
                 # print(self.count, self.drone_to_grid(self.position[0], self.position[1]))
                 self.build_map()

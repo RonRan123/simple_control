@@ -7,6 +7,9 @@
 	<!-- TODO add any calls to your code -->
   <node name="door_opener_node" pkg="simple_control" type="door_opener.py" output="screen">
     </node>
+  
+  <node name="path_finder_node" pkg="simple_control" type="path_finder.py" output="screen">
+    </node>
 
 
   <node name="update_map_node" pkg="simple_control" type="update_map.py" output="screen" required="True">

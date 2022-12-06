@@ -20,14 +20,16 @@ class UpdateMap():
         # Set the rate
         self.rate = 5.0
         self.dt = 1.0 / self.rate
+        self.threshold = 0.08
 
         # Aim towards center of block
-        self.offset = 0.1
+        self.offset = 0.05
         # Want to strength our map over time
-        self.adjust = 0.6
+        self.adjust = 0.1
         self.range = 5
 
         self.count = 0
+        self.position_counter = 0
 
         # Need to input from the arg file
         self.map_width = rospy.get_param('/update_map_node/map_width', 11)
@@ -47,6 +49,8 @@ class UpdateMap():
         self.map.info.height = self.map_height
         self.map.info.resolution = self.map_resolution
         self.map.data = [50] * self.map_width * self.map_height * self.map_resolution
+
+        self.map_final = set()
 
         self.map.info.origin.position.x = -1 * self.map_width / 2.0
         self.map.info.origin.position.y = -1 * self.map_height / 2.0
@@ -121,11 +125,11 @@ class UpdateMap():
 
     def get_doors(self):
         ans = []
-        if self.count > 2:
+        if self.position_counter > 2:
             for i in range(len(self.lidar)):
                 # print(self.lidar[x])
                 total_diff = abs(self.lidar[i][0] - self.prev_lidar[i][0]) + abs(self.lidar[i][1] - self.prev_lidar[i][1])
-                if total_diff > 0.05:
+                if total_diff > self.threshold:
                     ans.append(self.lidar[i])
         possible_doors = {}
         for d in ans:
@@ -136,11 +140,11 @@ class UpdateMap():
                 possible_doors[(door_x, door_y)] = 1
             else:
                 possible_doors[(door_x, door_y)] += 1
-            for key, count in possible_doors.items():
-                # might want to increase count to 3
-                if count >= 2:
-                    if not key in self.doors:
-                        self.doors[key] = -1  
+        for key, count in possible_doors.items():
+            # might want to increase count to 3
+            if count >= 2:
+                if not key in self.doors:
+                    self.doors[key] = -1  
         return ans
         # pass
 
@@ -198,7 +202,6 @@ class UpdateMap():
         res.append((x, y))
         return res
 
-
     def build_map(self):
         # Protected values that represent closed door, open door, and target
         special = {-1, -2, -3}
@@ -244,12 +247,12 @@ class UpdateMap():
             # if self.count == 1:
                 # print('Breseham', points, drone_start_x, drone_start_y, lidar_x, lidar_y)
             for xi, yi in points[:-1]:
-                if map_data[xi][yi] not in special:
+                if (xi, yi) not in self.map_final and map_data[xi][yi] not in special:
                     map_data[xi][yi] = max(0, map_data[xi][yi] - self.adjust * 100)
             
 
             # The last point will either be an obstacle or free
-            if map_data[lidar_x][lidar_y] not in special:
+            if map_data[lidar_x][lidar_y] not in special and (lidar_x, lidar_y) not in self.map_final:
                 if isObstacleThere:
                     map_data[lidar_x][lidar_y] = min(100, map_data[lidar_x][lidar_y] + self.adjust * 100)
                 else:
@@ -260,19 +263,27 @@ class UpdateMap():
             xd, yd = key
             map_data[xd][yd] = state
         
-        for xi in range(drone_start_x-1, drone_start_x+2):
-            for yi in range(drone_start_x-1, drone_start_x+2):
-                if (xi, yi) == (drone_start_x, drone_start_y):
+        for xi in range(-1, +2):
+            for yi in range(-1, 2):
+                adjacent_x, adjacent_y = drone_start_x + xi, drone_start_y + yi
+                magnitude = abs(xi) + abs(yi)
+                if not 0 <= adjacent_x < width and 0 <= adjacent_y < height:
                     continue
-                if 0 <= xi < width and 0 <= yi < height and  map_data[xi][yi] == -1:
+                # If cells to my left right top and down are 0 or 100, put as finalized
+                if (adjacent_x, adjacent_y) not in self.map_final:
+                    if (map_data[adjacent_x][adjacent_y] == 0 or map_data[adjacent_x][adjacent_y] == 100) and (adjacent_x, adjacent_y) not in self.map_final:
+                        self.map_final.add((adjacent_x, adjacent_y))
+                        print('map_final', (adjacent_x, adjacent_y))
+                # I'm next to unopened door, open it
+                if map_data[adjacent_x][adjacent_y] == -1:
                     door_point = Point()
                     # Need to convert back to drone perspective
-                    door_point.x = xi-world_frame_x_int
-                    door_point.y = yi-world_frame_y_int
+                    door_point.x = adjacent_x-world_frame_x_int
+                    door_point.y = adjacent_y-world_frame_y_int
                     door_point.z = 3
                     # print(door_point)
                     if(self.door_opener.use_key_client(door_point)):
-                        self.doors[(xi, yi)] = -2
+                        self.doors[(adjacent_x, adjacent_y)] = -2
         
         # Seems inefficient, should look into an alternative
         map_data = map_data.tolist()
@@ -294,9 +305,12 @@ class UpdateMap():
             path = [(5, 5), (6, 5), (7, 5), (7, 6), (7, 7), (7, 8), (7, 9), (8, 9), (9, 9)]
             goal = self.count // 15
             if self.count % 15 == 0 and 1 < self.count < 15 * len(path):
+                self.position_counter = 0
                 cell = path[goal]
                 self.move_drone(cell[0], cell[1])
-            if self.drone_to_grid(self.position[0], self.position[0]) == path[goal]:
+            if self.drone_to_grid(self.position[0], self.position[1]) == path[goal]:
+                self.position_counter += 1
+                # print(self.count, self.drone_to_grid(self.position[0], self.position[1]))
                 self.build_map()
                 self.map_pub.publish(self.map)
             self.get_doors()

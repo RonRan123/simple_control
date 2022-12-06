@@ -23,10 +23,9 @@ class UpdateMap():
         self.threshold = 0.08
 
         # Aim towards center of block
-        self.offset = 0.05
+        self.offset = 0.1
         # Want to strength our map over time
         self.adjust = 0.1
-        self.range = 5
 
         self.count = 0
         self.position_counter = 0
@@ -66,8 +65,8 @@ class UpdateMap():
         self.lidar = []
         self.prev_lidar = []
 
-        self.door_opener = DoorOpener()
-        self.tower_to_map = TowerToMap()
+        # self.door_opener = DoorOpener()
+        # self.tower_to_map = TowerToMap()
         
 
         self.target = None
@@ -252,7 +251,7 @@ class UpdateMap():
             
 
             # The last point will either be an obstacle or free
-            if map_data[lidar_x][lidar_y] not in special and (lidar_x, lidar_y) not in self.map_final:
+            if len(points) > 1 and map_data[lidar_x][lidar_y] not in special and (lidar_x, lidar_y) not in self.map_final:
                 if isObstacleThere:
                     map_data[lidar_x][lidar_y] = min(100, map_data[lidar_x][lidar_y] + self.adjust * 100)
                 else:

@@ -65,8 +65,8 @@ class UpdateMap():
         self.lidar = []
         self.prev_lidar = []
 
-        # self.door_opener = DoorOpener()
-        # self.tower_to_map = TowerToMap()
+        self.door_opener = DoorOpener()
+        self.tower_to_map = TowerToMap()
         
 
         self.target = None

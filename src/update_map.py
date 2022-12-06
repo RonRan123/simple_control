@@ -158,7 +158,7 @@ class UpdateMap():
         world_frame_x = self.map_width / 2.0
         world_frame_y = self.map_height / 2.0
         x_d, y_d = x_d + world_frame_x, y_d + world_frame_y
-        return int(x_d), int(y_d)
+        return (int(x_d), int(y_d))
     
     def grid_to_drone(self, x_g, y_g):
         world_frame_x = int(self.map_width / 2.0)
@@ -291,12 +291,14 @@ class UpdateMap():
 
         # While running
         while not rospy.is_shutdown():
-            path = [(6, 5), (7, 5), (7, 6), (7, 7), (7, 8), (7, 9), (8, 9), (9, 9)]
+            path = [(5, 5), (6, 5), (7, 5), (7, 6), (7, 7), (7, 8), (7, 9), (8, 9), (9, 9)]
+            goal = self.count // 15
             if self.count % 15 == 0 and 1 < self.count < 15 * len(path):
-                cell = path[self.count // 15]
+                cell = path[goal]
                 self.move_drone(cell[0], cell[1])
-            self.build_map()
-            self.map_pub.publish(self.map)
+            if self.drone_to_grid(self.position[0], self.position[0]) == path[goal]:
+                self.build_map()
+                self.map_pub.publish(self.map)
             self.get_doors()
             self.count+= 1
             # Sleep any excess time

@@ -115,25 +115,25 @@ class PathFinder():
         #         if 0 <= xi < width and 0 <= yi < height and (self.map[xi][yi] == 0 or self.map[xi][yi] == -2):
         #             neighbors.append((xi, yi))
         # return neighbors
-        if(self.map[drone_x + 1][drone_y] == 0 or self.map[drone_x + 1][drone_y] == -2):
+        if(self.map[drone_x + 1][drone_y] == 0 or self.map[drone_x + 1][drone_y] == -2 or self.map[drone_x + 1][drone_y] == -3):
             if self.map[drone_x + 1][drone_y] == -2:
                 neighbors.append(([drone_x + 1, drone_y], True))
             else:
                 neighbors.append(([drone_x + 1, drone_y], False))
             
-        if(self.map[drone_x - 1][drone_y] == 0 or self.map[drone_x - 1][drone_y] == -2):
+        if(self.map[drone_x - 1][drone_y] == 0 or self.map[drone_x - 1][drone_y] == -2 or self.map[drone_x - 1][drone_y] == -3):
             if self.map[drone_x - 1][drone_y] == -2:
                 neighbors.append(([drone_x - 1, drone_y], True))
             else:
                 neighbors.append(([drone_x - 1, drone_y], False))
             
-        if(self.map[drone_x][drone_y + 1] == 0 or self.map[drone_x][drone_y + 1] == -2):
+        if(self.map[drone_x][drone_y + 1] == 0 or self.map[drone_x][drone_y + 1] == -2 or self.map[drone_x][drone_y + 1] == -3):
             if self.map[drone_x][drone_y + 1] == -2:
                 neighbors.append(([drone_x, drone_y + 1], True))
             else:
                 neighbors.append(([drone_x, drone_y + 1], False))
             
-        if(self.map[drone_x][drone_y - 1] == 0 or self.map[drone_x][drone_y - 1] == -2):
+        if(self.map[drone_x][drone_y - 1] == 0 or self.map[drone_x][drone_y - 1] == -2 or self.map[drone_x][drone_y - 1] == -3):
             if self.map[drone_x][drone_y - 1] == -2:
                 neighbors.append(([drone_x, drone_y - 1], True))
             else:
@@ -192,9 +192,11 @@ class PathFinder():
         # Set the rate
         rate = rospy.Rate(self.rate)
 
-        self.frontier.put((0, (5,5)))
-        self.came_from[str([5,5])] = None
-        self.cost_so_far[str([5,5])] = 0
+        drone_start = (int(self.map_width/2.0),int(self.map_height/2.0))
+
+        self.frontier.put((0, drone_start))
+        self.came_from[str(list(drone_start))] = None
+        self.cost_so_far[str(list(drone_start))] = 0
 
 
         # While running
@@ -202,7 +204,12 @@ class PathFinder():
 
             if self.count % 15 == 0:
                 print("trying to move to a new position")
-                self.plan((9,9))
+                x = self.plan((9,9))
+                if x == True:
+                    self.move_drone(9,9)
+                    break
+                
+
                 
             
             # self.map_pub.publish(self.map)

@@ -64,12 +64,16 @@ class UpdateMap():
         self.is_door_open = False
         self.lidar = []
         self.prev_lidar = []
-
+        
+        self.door_opener = None
         self.door_opener = DoorOpener()
+        
         self.tower_to_map = TowerToMap()
         
 
         self.target = None
+        self.dog = None
+        # self.target = (21, 21)
 
         self.UpdateLoop()
 
@@ -106,25 +110,13 @@ class UpdateMap():
                 angle = msg.angle_min + index * msg.angle_increment  # - self.yaw
                 position = (length * math.cos(angle), length * math.sin(angle), False, angle)
                 new_lidar_data.append(position)
-        # time.sleep(1)
-        # print(new_lidar_data)
-        # print("the len is: ", len(new_lidar_data))
-        # if(self.count > 1):
-        #     print(" in the if ")
-        #     for pos in range(16):
-        #         # print("in loop")
-        #         print(new_lidar_data[pos])
-        #         print("diff in x: ", new_lidar_data[pos][0] - self.lidar[pos][0])
-        #         print("diff in y: ", new_lidar_data[pos][1] - self.lidar[pos][1])
-        #         print()
-            # print(self.lidar - new_lidar_data)
         if self.count > 1:
             self.prev_lidar = self.lidar
         self.lidar = new_lidar_data
 
     def get_doors(self):
         ans = []
-        if self.position_counter > 2:
+        if self.count > 2:
             for i in range(len(self.lidar)):
                 # print(self.lidar[x])
                 total_diff = abs(self.lidar[i][0] - self.prev_lidar[i][0]) + abs(self.lidar[i][1] - self.prev_lidar[i][1])
@@ -226,15 +218,16 @@ class UpdateMap():
 
         map_data = np.reshape(map.data, (width, height))
         
-        dog = self.tower_to_map.get_dog_position()
-        if not self.target and dog:
+        
+        if not self.target and self.dog:
+            self.dog = self.tower_to_map.get_dog_position()
             xt, yt = int(round(dog.x + (width / 2.0))), int(round(dog.y + (height/2.0)))
             self.target = (xt, yt)
             # self.target = self.drone_to_grid(dog.x, dog.y)
             # xt, yt = self.target
             map_data[xt][yt] = -3
             # Python is broken
-            print(dog, xt, yt, width/2.0, height/2.0, dog.x + width/2.0, dog.y + height/2.0)
+            # print(dog, xt, yt, width/2.0, height/2.0, dog.x + width/2.0, dog.y + height/2.0)
             
         # print('target', self.target)
 
@@ -277,7 +270,7 @@ class UpdateMap():
                 if magnitude == 1 and (adjacent_x, adjacent_y) not in self.map_final:
                     if (map_data[adjacent_x][adjacent_y] == 0 or map_data[adjacent_x][adjacent_y] == 100) and (adjacent_x, adjacent_y) not in self.map_final:
                         self.map_final.add((adjacent_x, adjacent_y))
-                        print('map_final', (adjacent_x, adjacent_y))
+                        # print('map_final', (adjacent_x, adjacent_y))
                 # I'm next to unopened door, open it
                 if map_data[adjacent_x][adjacent_y] == -1:
                     door_point = Point()
@@ -306,17 +299,8 @@ class UpdateMap():
 
         # While running
         while not rospy.is_shutdown():
-            path = [(5, 5), (6, 5), (7, 5), (7, 6), (7, 7), (7, 8), (7, 9), (8, 9), (9, 9)]
-            # goal = self.count // 15
-            # if self.count % 15 == 0 and 1 < self.count < 15 * len(path):
-            #     self.position_counter = 0
-            #     cell = path[goal]
-            #     self.move_drone(cell[0], cell[1])
-            if self.drone_to_grid(self.position[0], self.position[1]) in path:
-                self.position_counter += 1
-                # print(self.count, self.drone_to_grid(self.position[0], self.position[1]))
-                self.build_map()
-                self.map_pub.publish(self.map)
+            self.build_map()
+            self.map_pub.publish(self.map)
             self.get_doors()
             self.count+= 1
             # Sleep any excess time

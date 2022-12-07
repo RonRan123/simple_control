@@ -217,11 +217,10 @@ class UpdateMap():
         end_y = drone_start_y + (height * res)
 
         map_data = np.reshape(map.data, (width, height))
-        
-        
-        if not self.target and self.dog:
+        if not self.dog:
             self.dog = self.tower_to_map.get_dog_position()
-            xt, yt = int(round(dog.x + (width / 2.0))), int(round(dog.y + (height/2.0)))
+        if not self.target and self.dog:
+            xt, yt = int(round(self.dog.x + (width / 2.0))), int(round(self.dog.y + (height/2.0)))
             self.target = (xt, yt)
             # self.target = self.drone_to_grid(dog.x, dog.y)
             # xt, yt = self.target

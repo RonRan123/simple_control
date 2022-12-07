@@ -93,7 +93,7 @@ class UpdateMap():
             if drone_range < msg.range_max:
                 angle = msg.angle_min + index * msg.angle_increment  # - self.yaw
                 # TODO: Decide on one of these for the moving drone
-                position = (drone_range * math.cos(angle), drone_range * math.sin(angle), True)
+                position = (drone_range * math.cos(angle), drone_range * math.sin(angle), True, angle)
                 # position = (self.position[0] + range * math.cos(angle),
                 #             self.position[1] + range * math.sin(angle))
                 # print('angle', angle)
@@ -104,7 +104,7 @@ class UpdateMap():
             else:
                 length = msg.range_max
                 angle = msg.angle_min + index * msg.angle_increment  # - self.yaw
-                position = (length * math.cos(angle), length * math.sin(angle), False)
+                position = (length * math.cos(angle), length * math.sin(angle), False, angle)
                 new_lidar_data.append(position)
         # time.sleep(1)
         # print(new_lidar_data)
@@ -132,7 +132,7 @@ class UpdateMap():
                     ans.append(self.lidar[i])
         possible_doors = {}
         for d in ans:
-            lidar_c_x, lidar_c_y = self.lidar_to_drone(d[0], d[1])
+            lidar_c_x, lidar_c_y = self.lidar_to_drone(d[0], d[1], d[3])
             # The contionus values converted to OccupancyGrid
             door_x, door_y = self.drone_to_grid(lidar_c_x, lidar_c_y)
             if (door_x, door_y) not in possible_doors:
@@ -149,12 +149,17 @@ class UpdateMap():
 
 
         # self.lidar = np.array(self.lidar)
-    def lidar_to_drone(self, x_l, y_l):
+    def lidar_to_drone(self, x_l, y_l, angle= None):
         drone_start_x = self.position[0] 
         drone_start_y = self.position[1]
+        # Old erroneous code, want to get rid of
+        if not angle:
+            adjusted_x = x_l + self.sign(x_l) * self.offset
+            adjusted_y = y_l + self.sign(y_l) * self.offset
+        else:
+            adjusted_x = x_l + math.cos(angle) * self.offset
+            adjusted_y = y_l + math.sin(angle) * self.offset
 
-        adjusted_x = x_l + self.sign(x_l) * self.offset
-        adjusted_y = y_l + self.sign(y_l) * self.offset
         return drone_start_x + adjusted_x, drone_start_y + adjusted_y
 
     def drone_to_grid(self, x_d, y_d):
@@ -235,16 +240,16 @@ class UpdateMap():
 
         lidar_list = self.lidar
         # Go over the recent LIDAR data to update map
-        for xl, yl, isObstacleThere in lidar_list:
+        for xl, yl, isObstacleThere, angle in lidar_list:
             # The continuous lidar values, with the offset
-            lidar_c_x, lidar_c_y = self.lidar_to_drone(xl, yl)
+            lidar_c_x, lidar_c_y = self.lidar_to_drone(xl, yl, angle)
             # The contionus values converted to OccupancyGrid
             lidar_x, lidar_y = self.drone_to_grid(lidar_c_x, lidar_c_y)
 
             # More evidence that a particular position is clear
             points = self.line(drone_start_x, drone_start_y, lidar_x, lidar_y )
-            # if self.count == 1:
-                # print('Breseham', points, drone_start_x, drone_start_y, lidar_x, lidar_y)
+            if points[-1] == (8,7):
+                print('Breseham', points, drone_start_x, drone_start_y, lidar_x, lidar_y, isObstacleThere)
             for xi, yi in points[:-1]:
                 if (xi, yi) not in self.map_final and map_data[xi][yi] not in special:
                     map_data[xi][yi] = max(0, map_data[xi][yi] - self.adjust * 100)
@@ -269,7 +274,7 @@ class UpdateMap():
                 if not 0 <= adjacent_x < width and 0 <= adjacent_y < height:
                     continue
                 # If cells to my left right top and down are 0 or 100, put as finalized
-                if (adjacent_x, adjacent_y) not in self.map_final:
+                if magnitude == 1 and (adjacent_x, adjacent_y) not in self.map_final:
                     if (map_data[adjacent_x][adjacent_y] == 0 or map_data[adjacent_x][adjacent_y] == 100) and (adjacent_x, adjacent_y) not in self.map_final:
                         self.map_final.add((adjacent_x, adjacent_y))
                         print('map_final', (adjacent_x, adjacent_y))
